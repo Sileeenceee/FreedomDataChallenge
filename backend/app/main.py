@@ -8,7 +8,8 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.db import SessionLocal, engine, init_db
-from app.routers import checklists, conversations, evaluations
+from app.routers import checklists, conversations, evaluations, qwen_link
+from app.services import qwen
 from app.services.runner import recover_interrupted
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -17,6 +18,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
+    qwen.load_saved_connection()
     with SessionLocal() as session:
         checklists.seed_default(session)
     recover_interrupted()
@@ -41,6 +43,7 @@ app.add_middleware(
 app.include_router(conversations.router)
 app.include_router(checklists.router)
 app.include_router(evaluations.router)
+app.include_router(qwen_link.router)
 
 
 @app.get("/api/health")
@@ -52,6 +55,7 @@ def health():
         "database": engine.dialect.name,
         "evaluator": settings.evaluator_mode,
         "model": settings.model_name,
+        "qwen": qwen.status() if settings.evaluator_mode == "qwen" else None,
         "effort": settings.cqa_effort,
         "source_api_configured": bool(settings.cqa_api_url),
         "pricing_usd_per_mtok": {"input": settings.price_input, "output": settings.price_output},

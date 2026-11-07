@@ -182,6 +182,8 @@ def sanitize_items(config: ChecklistConfig, turns: list[dict], raw_items: list[d
                 # Optional: how the operator should have answered (shown in the UI under "Как следовало ответить").
                 "suggested_reply": (r.get("suggested_reply") or "").strip(),
                 "warnings": warnings,
+                # Qwen v3 extras (absent for other evaluators): who decided the score and the filled fields.
+                **{k: r[k] for k in ("derived_by", "model_score", "agreement", "fields") if k in r},
             }
         )
     return items
@@ -364,20 +366,13 @@ def evaluate_with_qwen(config: ChecklistConfig, turns: list[dict], meta: dict) -
     from app.services import qwen
 
     t0 = time.time()
-    r = qwen.generate(qwen.build_messages(config, turns, meta))
-    data = qwen.parse_json(r["text"])
+    out = qwen.evaluate(config, turns, meta)
     return EvalOutput(
-        summary=(data.get("summary") or "").strip(),
-        items=sanitize_items(config, turns, qwen.to_raw_items(config, turns, data)),
-        model=settings.qwen_model,
+        summary=out["summary"],
+        items=sanitize_items(config, turns, out["items"]),
+        model=(qwen.status().get("model") or settings.qwen_model) + " · v3",
         evaluator="qwen",
-        usage={
-            "input_tokens": r.get("input_tokens", 0),
-            "output_tokens": r.get("output_tokens", 0),
-            "gpu_seconds": r.get("seconds"),
-            "cost_usd": 0.0,
-            "raw_output": r["text"],
-        },
+        usage={**out["usage"], "facts": out["facts"]},
         duration_s=round(time.time() - t0, 2),
     )
 

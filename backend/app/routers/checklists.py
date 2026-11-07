@@ -29,9 +29,13 @@ def active_checklist(session: Session) -> Checklist | None:
 
 
 def seed_default(session: Session) -> None:
-    if session.scalar(select(func.count()).select_from(Checklist)):
+    """Seed the official checklist. An existing DB without the v3 checklist gets it added and activated once
+    (older checklists stay available in the list)."""
+    rows = session.scalars(select(Checklist)).all()
+    if any(r.config.get("name") == DEFAULT_CHECKLIST["name"] for r in rows):
         return
     cfg = ChecklistConfig.model_validate(DEFAULT_CHECKLIST)
+    session.execute(update(Checklist).values(is_active=False))
     session.add(
         Checklist(
             name=cfg.name,

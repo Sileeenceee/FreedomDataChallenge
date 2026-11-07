@@ -1,7 +1,7 @@
 // Start page: the four steps of the workflow and three key numbers. Nothing else.
 import { evaluateDialog, importDialog, uploadDialog } from "../actions.js";
 import { api } from "../api.js";
-import { isMock } from "../app.js";
+import { isMock, state } from "../app.js";
 import { h, hero, num, setChildren, steps } from "../ui.js";
 
 export async function renderHome(root) {
@@ -50,6 +50,9 @@ export async function renderHome(root) {
       tile("Открытые апелляции", num(s.appeals_open, 0), s.appeals_open ? "warn" : null),
     ),
     isMock() ? h("p", { class: "mock-line" }, "⚠ Демо-режим: модель не подключена, баллы условные.") : null,
+    state.health?.evaluator === "qwen" && !state.health.qwen?.online
+      ? h("p", { class: "mock-line" }, "⚠ Qwen не подключён: запустите ячейку сервера в Colab и откройте напечатанную ссылку (или нажмите «Подключить Qwen» справа вверху).")
+      : null,
   );
 
   const onBatch = () => reload();

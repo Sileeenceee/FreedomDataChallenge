@@ -2,7 +2,7 @@
 
 import re
 from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -20,6 +20,14 @@ class Section(BaseModel):
     title: str
 
 
+class CheckField(BaseModel):
+    """Typed helper field the model fills before scoring (Qwen v3: "atomic checks")."""
+
+    type: Literal["bool", "list[int]", "int|null", "list[str]", "list[obj]"]
+    instruction: str
+    example: Any = None
+
+
 class Criterion(BaseModel):
     id: str
     section_id: str | None = None
@@ -32,6 +40,11 @@ class Criterion(BaseModel):
     na_rule: str = ""  # when N/A applies
     critical: bool = False  # "грубая ошибка": failing this criterion is flagged separately
     critical_rule: str = ""  # optional: what exactly counts as a gross error
+    voice_rule: str = ""  # extra instruction used only for voice calls
+    # Qwen v3: fields the model fills first, and the name of a code rule (services/qwen.py RULES) that turns
+    # them + computed facts into the final score. Both optional: without `derive` the model's score is used.
+    check_fields: dict[str, CheckField] = Field(default_factory=dict)
+    derive: str | None = None
 
 
 class Scoring(BaseModel):

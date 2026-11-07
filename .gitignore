@@ -253,3 +253,13 @@ errors.json
 qwen_dataset.json
 cloudflared
 .ipynb_checkpoints/
+
+# CQA evaluator notebooks: organisers' data and run outputs stay local (repo is public)
+dev.json
+labels_*.json
+results_*.json
+errors_*.json
+checklist_chat-*.json
+# duplicate browser downloads, e.g. "notebook (1).ipynb"
+* (1).*
+* (2).*
