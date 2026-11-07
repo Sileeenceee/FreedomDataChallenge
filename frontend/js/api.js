@@ -33,6 +33,9 @@ const qs = (params) => {
 export const api = {
   health: () => request("GET", "/api/health"),
   stats: () => request("GET", "/api/stats"),
+  qwenStatus: () => request("GET", "/api/qwen/status"),
+  qwenConnect: (url, token) => request("POST", "/api/qwen/connect", { url, token }),
+  qwenDisconnect: () => request("POST", "/api/qwen/disconnect"),
 
   conversations: () => request("GET", "/api/conversations"),
   conversation: (id) => request("GET", `/api/conversations/${encodeURIComponent(id)}`),

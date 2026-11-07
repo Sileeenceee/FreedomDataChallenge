@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.checklist import ChecklistConfig
+from app.config import settings
 from app.db import Appeal, Checklist, Conversation, Evaluation, get_session, now
 from app.routers.checklists import active_checklist
 from app.serializers import appeal_out, evaluation_full
@@ -27,6 +28,10 @@ def start_evaluations(req: EvaluateRequest, session: Session = Depends(get_sessi
     checklist = session.get(Checklist, req.checklist_id) if req.checklist_id else active_checklist(session)
     if checklist is None:
         raise HTTPException(400, "Checklist not found")
+    if settings.evaluator_mode == "qwen" and not settings.qwen_url:
+        raise HTTPException(
+            409, "Qwen не подключён: запустите ячейку сервера в Colab и откройте ссылку, которую она напечатает."
+        )
     q = select(Conversation.id)
     if req.conversation_ids:
         q = q.where(Conversation.id.in_(req.conversation_ids))

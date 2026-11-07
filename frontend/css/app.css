@@ -539,6 +539,7 @@ body.embed .chat-panel { top: 12px; max-height: calc(100vh - 24px); }
 .split-score-max { color: #6f7874; }
 .split-score-was { margin-left: 12px; font-size: 13px; color: #6f7874; }
 .split-critical { color: #b3261e; margin: 4px 0 0; font-weight: 600; }
+.split-critical .line-link { color: inherit; font-weight: 600; display: block; text-align: left; }
 .split-sections { color: #6f7874; font-size: 13px; margin: 4px 0 0; }
 .split-empty { color: #6f7874; margin: 24px 0; }
 
@@ -603,6 +604,11 @@ h1, h2 { color: var(--ink); }
 .nav-badge { background: #10372c; color: #fff; }
 .engine-chip { border: 0; background: var(--fill); color: var(--sub); }
 .engine-mock { color: #8a5a00; background: #fbf3e2; }
+button.engine-chip { cursor: pointer; font: inherit; font-size: 12px; }
+.engine-ai { color: #0b6b3a; background: #e3f4ea; }
+.engine-off { color: #a3261b; background: #fbe6e3; }
+.detail-source { font-size: 12px; color: var(--sub); margin: 2px 0 6px; }
+.split-summary { font-size: 13px; color: var(--sub); margin: 4px 0 10px; line-height: 1.45; }
 .batch-progress { color: var(--sub); }
 .batch-progress .bar { background: var(--fill); }
 .batch-progress .bar > span { background: #10372c; }
@@ -714,3 +720,4 @@ h1, h2 { color: var(--ink); }
 .split-left > .split-chat-list { flex: 1; }
 .split-hint { color: var(--sub); background: transparent; padding: 20px 0 0; }
 .kv dt { color: var(--sub); }
+.text-ok { color: var(--good, #0b8f4e); }

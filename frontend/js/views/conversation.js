@@ -114,11 +114,18 @@ export async function renderConversation(root, params, id) {
 
   const MARK = { good: "✓", mid: "½", bad: "✕", na: "–" };
 
+  /** Qwen v3: was the score decided by a code rule over the model's fields, or by the model itself? */
+  function sourceLabel(item) {
+    const agree = item.agreement !== undefined && item.agreement < 1 ? ` · согласие прогонов ${Math.round(item.agreement * 100)}%` : "";
+    if (item.derived_by === "model") return `Решение: модель${agree}`;
+    const ms = item.model_score === null || item.model_score === undefined ? "—" : item.model_score;
+    return `Решение: правило «${item.derived_by.replace(/^rule:/, "")}» по полям модели (модель ответила «${ms}»)${agree}`;
+  }
+
   function renderResult(ev) {
     const cfg = ev.checklist;
     const res = ev.final_result;
     const changed = ev.result.total !== res.total;
-    const critTitles = (res.critical_criteria || []).map((cid) => cfg.criteria.find((c) => c.id === cid)?.title || cid);
 
     const rows = cfg.criteria.map((c) => {
       const item = ev.final_items.find((it) => it.criterion_id === c.id);
@@ -129,6 +136,24 @@ export async function renderConversation(root, params, id) {
     });
     // Nothing is selected until the user clicks a criterion (unless the URL asks for one).
     if (selected && !rows.some((r) => r.c.id === selected)) selected = null;
+
+    /** Gross-error banner: what was found and where (not the criterion title, which may be phrased "no gross errors"). */
+    function criticalBanner() {
+      const found = rows.filter((r) => (res.critical_criteria || []).includes(r.c.id));
+      return h(
+        "div",
+        { class: "split-critical" },
+        ...found.map((r) => {
+          const turns = (r.item?.evidence || []).map((e) => `#${e.turn}`);
+          const why = r.item?.explanation || r.c.critical_rule || r.c.title;
+          return h(
+            "button",
+            { class: "line-link", title: "Показать в диалоге", onClick: () => choose(r) },
+            `Грубая ошибка${turns.length ? ` (реплика ${turns.join(", ")})` : ""}: ${why}`,
+          );
+        }),
+      );
+    }
 
     const detailBox = h("div", { class: "split-detail split-hint" }, "Нажмите на критерий — в чате подсветятся сообщения, по которым он оценён.");
 
@@ -152,6 +177,7 @@ export async function renderConversation(root, params, id) {
       setChildren(
         detailBox,
         h("div", { class: "detail-head" }, h("span", { class: `mark mark-${tone}` }, MARK[tone]), h("h3", {}, c.title), h("span", { class: "detail-answer" }, answerLabel(c, item))),
+        item?.derived_by ? h("p", { class: "detail-source" }, sourceLabel(item)) : null,
         item?.overridden ? h("p", { class: "detail-note" }, `Изменено проверяющим (было «${answerLabel(c, aiItem)}»). ${item.reviewer_reason || ""}`) : null,
         h("p", { class: "detail-text" }, reason),
         evidence.length
@@ -210,7 +236,8 @@ export async function renderConversation(root, params, id) {
         h("span", { class: "split-score-max" }, `/ ${num(res.max_total, 0)}`),
         changed ? h("span", { class: "split-score-was" }, `было ${num(ev.result.total, 2)}`) : null,
       ),
-      res.critical_error ? h("p", { class: "split-critical" }, `Грубая ошибка: ${critTitles.join(", ")}`) : null,
+      ev.summary ? h("p", { class: "split-summary" }, ev.summary) : null,
+      res.critical_error ? criticalBanner() : null,
       res.sections?.length ? h("p", { class: "split-sections" }, res.sections.map((s) => `${s.title} ${s.na ? "—" : `${num(s.percent, 0)}%`}`).join("  ·  ")) : null,
       list,
       detailBox,
