@@ -18,7 +18,8 @@ class Settings(BaseSettings):
 
     # Evaluator: "anthropic" (Claude) or "mock" (offline heuristic, for UI development without a key).
     # "auto" = anthropic when ANTHROPIC_API_KEY is set, otherwise mock.
-    evaluator: str = "auto"
+    evaluator: str = "qwen"
+    qwen_model: str = "Qwen/Qwen3-4B-Instruct-2507"
     anthropic_api_key: str = ""
     cqa_model: str = "claude-opus-5-5"
     cqa_effort: str = "medium"  # low | medium | high | xhigh | max
