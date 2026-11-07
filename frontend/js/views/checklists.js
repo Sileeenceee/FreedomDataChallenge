@@ -1,6 +1,6 @@
 import { api } from "../api.js";
 import { go, trackBatch } from "../app.js";
-import { dt, field, h, modal, num, select, toast, setChildren } from "../ui.js";
+import { dt, field, h, modal, num, pageHeader, select, toast, setChildren } from "../ui.js";
 
 // ---------------------------------------------------------------- list
 export async function renderChecklists(root) {
@@ -11,13 +11,13 @@ export async function renderChecklists(root) {
     families.get(c.family).push(c);
   });
 
-  setChildren(root, 
-    h(
-      "div",
-      { class: "page-head" },
-      h("div", {}, h("h1", {}, "Чек-листы"), h("p", { class: "muted" }, "Критерии, веса, шкалы и правила N/A. Каждое сохранение создаёт новую версию; прошлые оценки хранят свою версию.")),
-      h("div", { class: "actions" }, h("button", { class: "btn", onClick: () => importDialog(null) }, "Импорт JSON"), h("a", { class: "btn btn-primary", href: "#/checklists/new" }, "Новый чек-лист")),
-    ),
+  setChildren(
+    root,
+    pageHeader({
+      title: "Чек-листы",
+      subtitle: "Чтобы заменить критерий: «Редактировать» → измените → «Сохранить версию» → «Применить к диалогам».",
+      actions: [h("button", { class: "btn", onClick: () => importDialog(null) }, "Импорт JSON"), h("a", { class: "btn btn-primary", href: "#/checklists/new" }, "Новый чек-лист")],
+    }),
     [...families.values()].map((versions) => {
       const latest = versions[0];
       return h(
@@ -84,7 +84,7 @@ export async function applyDialog(checklist) {
           if (!r.count) return toast("Нечего оценивать", "warn");
           trackBatch(r.batch_id);
           toast(`В очереди: ${r.count}`, "ok");
-          go("#/");
+          go("#/dialogs");
         },
       },
     ],
@@ -298,27 +298,41 @@ export async function renderChecklistEditor(root, _params, id) {
       renderCriteria();
     };
 
+    const isOpen = !!c._open;
     return h(
-      "details",
-      { class: "criterion-edit", open: cfg.criteria.length <= 3 || c._open },
+      "div",
+      { class: "criterion-edit" },
       h(
-        "summary",
-        {},
+        "div",
+        { class: "criterion-edit-head" },
         h("span", { class: "mono muted" }, `${i + 1}.`),
         h("span", { class: "strong" }, c.title || "(без названия)"),
-        h("span", { class: "muted small" }, `${c.type === "binary" ? "Да/Нет" : `шкала ${c.scale.min}–${c.scale.max}`} · вес ${c.weight}${c.na_allowed ? " · N/A" : ""}${c.critical ? " · критичный" : ""}`),
+        h("span", { class: "muted small" }, `вес ${c.weight}`),
         h(
           "span",
           { class: "summary-actions" },
-          h("button", { class: "icon-btn", title: "Вверх", onClick: (e) => { e.preventDefault(); move(-1); } }, "↑"),
-          h("button", { class: "icon-btn", title: "Вниз", onClick: (e) => { e.preventDefault(); move(1); } }, "↓"),
-          h("button", { class: "icon-btn", title: "Дублировать", onClick: (e) => { e.preventDefault(); cfg.criteria.splice(i + 1, 0, { ...structuredClone(c), id: `${c.id}_copy`, _open: true }); markDirty(); renderCriteria(); } }, "⧉"),
-          h("button", { class: "icon-btn danger", title: "Удалить", onClick: (e) => { e.preventDefault(); if (cfg.criteria.length === 1) return toast("Нужен хотя бы один критерий", "warn"); cfg.criteria.splice(i, 1); markDirty(); renderCriteria(); } }, "×"),
+          h("button", { class: "icon-btn", title: "Вверх", onClick: () => move(-1) }, "↑"),
+          h("button", { class: "icon-btn", title: "Вниз", onClick: () => move(1) }, "↓"),
+          h("button", { class: "icon-btn", title: "Дублировать", onClick: () => { cfg.criteria.splice(i + 1, 0, { ...structuredClone(c), id: `${c.id}_copy`, _open: true }); markDirty(); renderCriteria(); } }, "⧉"),
+          h("button", { class: "icon-btn danger", title: "Удалить", onClick: () => { if (cfg.criteria.length === 1) return toast("Нужен хотя бы один критерий", "warn"); cfg.criteria.splice(i, 1); markDirty(); renderCriteria(); } }, "×"),
+          h(
+            "button",
+            {
+              class: "btn btn-sm btn-ghost edit-toggle",
+              onClick: (e) => {
+                const form = e.currentTarget.closest(".criterion-edit").querySelector(".form-grid");
+                form.hidden = !form.hidden;
+                c._open = !form.hidden;
+                e.currentTarget.textContent = form.hidden ? "Изменить" : "Свернуть";
+              },
+            },
+            isOpen ? "Свернуть" : "Изменить",
+          ),
         ),
       ),
       h(
         "div",
-        { class: "form-grid" },
+        { class: "form-grid", hidden: !isOpen },
         field("Название", bind(c, "title")),
         field("ID (латиница)", bind(c, "id"), "Используется в API и ссылках; уникален в чек-листе"),
         field("Секция", select([["", "— без секции —"], ...cfg.sections.map((s) => [s.id, s.title])], c.section_id || "", { onChange: (e) => { c.section_id = e.target.value || null; markDirty(); } })),
@@ -373,24 +387,18 @@ export async function renderChecklistEditor(root, _params, id) {
     go(`#/checklists/${saved.id}`);
   }
 
-  setChildren(root, 
-    h(
-      "div",
-      { class: "page-head" },
-      h(
-        "div",
-        {},
-        h("a", { href: "#/checklists", class: "back small" }, "← Чек-листы"),
-        h("h1", {}, isNew ? "Новый чек-лист" : `${source.name} · v${source.version}`),
-        source ? h("div", { class: "chips" }, source.is_active ? h("span", { class: "badge badge-good" }, "активный") : null, h("span", { class: "muted small" }, "Сохранение создаст новую версию")) : null,
-      ),
-      h(
-        "div",
-        { class: "actions" },
+  setChildren(
+    root,
+    pageHeader({
+      back: { href: "#/checklists", label: "Чек-листы" },
+      title: isNew ? "Новый чек-лист" : source.name,
+      chips: isNew ? null : [h("span", { class: "chip" }, `v${source.version}`), source.is_active ? h("span", { class: "badge badge-good" }, "активный") : null],
+      subtitle: "Измените критерии и нажмите «Сохранить версию» внизу.",
+      actions: [
         h("button", { class: "btn", onClick: () => importDialog(source?.id ?? null, (imported) => { Object.keys(cfg).forEach((k) => delete cfg[k]); Object.assign(cfg, imported); cfg.scoring = cfg.scoring || { max_total: 100, decimals: 0, rounding: "half_up", critical_policy: "flag" }; cfg.sections = cfg.sections || []; cfg.criteria.forEach((c) => (c.scale = c.scale || { min: 0, max: 1, labels: {} })); markDirty(); renderSections(); renderCriteria(); toast("Загружено в редактор — проверьте и сохраните", "ok"); }) }, "Импорт JSON"),
         source ? h("button", { class: "btn", onClick: () => applyDialog(source) }, "Применить к диалогам") : null,
-      ),
-    ),
+      ],
+    }),
     general,
     sectionsBox,
     h(

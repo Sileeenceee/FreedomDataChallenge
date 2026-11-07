@@ -1,6 +1,7 @@
+// Appeals: a simple queue, and a review page (dispute + decision on the left, dialogue fragment on the right).
 import { api } from "../api.js";
 import { refreshBadges } from "../app.js";
-import { APPEAL_STATUS, SPEAKER, answerLabel, dt, emptyState, field, h, num, scorePill, toast, turnTime, setChildren } from "../ui.js";
+import { APPEAL_STATUS, answerLabel, chatMessage, dt, emptyState, field, h, label, num, pageHeader, scorePill, setChildren, toast } from "../ui.js";
 
 let tab = "open";
 
@@ -10,10 +11,9 @@ export async function renderAppeals(root) {
     "div",
     { class: "tabs" },
     [
-      ["open", "На рассмотрении"],
+      ["open", "Ждут решения"],
       ["decided", "Решённые"],
-      ["all", "Все"],
-    ].map(([k, label]) =>
+    ].map(([k, text]) =>
       h(
         "button",
         {
@@ -23,7 +23,7 @@ export async function renderAppeals(root) {
             renderAppeals(root);
           },
         },
-        label,
+        text,
       ),
     ),
   );
@@ -35,34 +35,27 @@ export async function renderAppeals(root) {
         h(
           "table",
           { class: "table" },
-          h("thead", {}, h("tr", {}, ["№", "Диалог", "Критерий", "Оценка ИИ", "Комментарий", "Статус", "Итог", "Подана"].map((t) => h("th", {}, t)))),
+          h("thead", {}, h("tr", {}, ["Диалог", "Критерий", "Комментарий", "Итог", ""].map((t, i) => h("th", { class: i === 3 ? "num" : "" }, t)))),
           h(
             "tbody",
             {},
             list.map((a) =>
               h(
                 "tr",
-                { onClick: (e) => !e.target.closest("a") && (location.hash = `#/appeals/${a.id}`) },
-                h("td", {}, h("a", { href: `#/appeals/${a.id}`, class: "strong" }, `#${a.id}`)),
-                h("td", {}, h("a", { href: `#/c/${encodeURIComponent(a.conversation_id)}?eval=${a.evaluation_id}`, class: "mono" }, a.conversation_id)),
+                {},
+                h("td", { class: "cell-id" }, h("a", { href: `#/appeals/${a.id}`, class: "mono strong" }, a.conversation_id), h("div", { class: "muted small" }, dt(a.created_at))),
                 h("td", {}, a.criterion_title),
-                h("td", {}, a.original_item?.applicable ? `${a.original_item.value}` : "N/A"),
-                h("td", {}, h("div", { class: "preview" }, a.comment), a.author ? h("div", { class: "muted small" }, `— ${a.author}`) : null),
-                h("td", {}, h("span", { class: `badge appeal-badge appeal-${a.status}` }, APPEAL_STATUS[a.status])),
-                h("td", { class: "num" }, a.status === "open" ? scorePill(a.current_total, 100) : h("span", {}, num(a.total_before, 2), " → ", h("b", {}, num(a.total_after, 2)))),
-                h("td", { class: "small muted" }, dt(a.created_at)),
+                h("td", {}, h("div", { class: "preview" }, a.comment)),
+                h("td", { class: "num" }, a.status === "open" ? scorePill(a.current_total, 100) : h("span", { class: "small" }, num(a.total_before, 2), " → ", h("b", {}, num(a.total_after, 2)))),
+                h("td", { class: "cell-action" }, h("a", { class: `btn btn-sm ${a.status === "open" ? "btn-primary" : ""}`, href: `#/appeals/${a.id}` }, a.status === "open" ? "Рассмотреть" : "Открыть")),
               ),
             ),
           ),
         ),
       )
-    : emptyState(tab === "open" ? "Нет апелляций на рассмотрении" : "Апелляций пока нет", "Апелляцию подают из карточки диалога кнопкой «Оспорить» у критерия.");
+    : emptyState(tab === "open" ? "Нет апелляций, ждущих решения" : "Решённых апелляций пока нет", "Апелляцию подают в карточке диалога: раскройте критерий и нажмите «Оспорить».");
 
-  setChildren(root, 
-    h("div", { class: "page-head" }, h("div", {}, h("h1", {}, "Апелляции"), h("p", { class: "muted" }, "Проверяющий изучает спорную оценку, доказательства и комментарий, затем подтверждает или меняет оценку."))),
-    tabs,
-    table,
-  );
+  setChildren(root, pageHeader({ title: "Апелляции" }), tabs, table);
 }
 
 export async function renderAppeal(root, _params, id) {
@@ -70,101 +63,59 @@ export async function renderAppeal(root, _params, id) {
   const c = a.criterion;
   const ev = a.evaluation;
   const original = a.original_item;
-  const finalItem = ev.final_items.find((i) => i.criterion_id === a.criterion_id);
   const evidenceTurns = new Set((original.evidence || []).map((e) => e.turn));
   const range = original.checked_range;
+  const decided = a.status !== "open";
+  const cardHref = `#/c/${encodeURIComponent(a.conversation_id)}?eval=${ev.id}`;
 
   const fragment = h(
     "div",
-    { class: "transcript fragment" },
-    a.fragment.map((t) =>
-      h(
-        "div",
-        { class: `turn turn-${t.speaker} ${evidenceTurns.has(t.idx) ? "hl-evidence" : range && t.idx >= range[0] && t.idx <= range[1] ? "hl-range" : ""}` },
-        h(
-          "div",
-          { class: "turn-meta" },
-          h("a", { class: "turn-idx", href: `#/c/${encodeURIComponent(a.conversation_id)}?eval=${ev.id}&turn=${t.idx}` }, `#${t.idx}`),
-          h("span", { class: "turn-speaker" }, SPEAKER[t.speaker]),
-          h("span", { class: "turn-time" }, turnTime(t)),
-        ),
-        h("div", { class: "turn-text" }, t.text),
-      ),
-    ),
+    { class: "split-chat-list" },
+    a.fragment.map((t) => chatMessage(t, { cls: evidenceTurns.has(t.idx) ? "hl-mid" : !evidenceTurns.size && range && t.idx >= range[0] && t.idx <= range[1] ? "hl-range" : "" })),
   );
 
-  const criterionBox = h(
-    "section",
-    { class: "panel" },
-    h("div", { class: "panel-head" }, h("h2", {}, c.title), c.critical ? h("span", { class: "badge badge-bad-outline" }, "критичный") : null),
-    h("p", {}, c.description),
+  const dispute = h(
+    "div",
+    { class: "split-block" },
+    h("div", { class: "block first" }, label("Оценка"), h("div", { class: "dispute-score" }, h("span", { class: "answer answer-na" }, answerLabel(c, original))), h("p", { class: "explanation" }, original.explanation)),
+    h("div", { class: "block" }, label("Комментарий апелляции"), h("div", { class: "quote-box appeal-comment" }, a.comment)),
     h(
-      "dl",
-      { class: "kv small" },
-      h("dt", {}, "Тип"),
-      h("dd", {}, c.type === "binary" ? "Да/Нет" : `Шкала ${c.scale.min}–${c.scale.max}${Object.keys(c.scale.labels || {}).length ? `: ${Object.entries(c.scale.labels).map(([k, v]) => `${k} — ${v}`).join("; ")}` : ""}`),
-      h("dt", {}, "Вес"),
-      h("dd", {}, num(c.weight, 2)),
-      h("dt", {}, "N/A"),
-      h("dd", {}, c.na_allowed ? `допускается: ${c.na_rule || "—"}` : "не допускается"),
-      c.critical ? [h("dt", {}, "Грубая ошибка"), h("dd", {}, c.critical_rule || "нарушение критерия")] : null,
+      "details",
+      { class: "more" },
+      h("summary", {}, "Описание критерия"),
+      h("p", {}, c.description || "—"),
+      h("p", { class: "small muted" }, `${c.type === "binary" ? "Да / Нет" : `Шкала ${c.scale.min}–${c.scale.max}`} · вес ${num(c.weight, 2)} · N/A ${c.na_allowed ? `допускается: ${c.na_rule || ""}` : "не допускается"}`),
     ),
-    h("h3", {}, "Оценка ИИ (оспаривается)"),
-    h("div", { class: "quote-box" }, h("div", {}, h("b", {}, answerLabel(c, original))), original.na_reason ? h("div", { class: "small" }, `N/A: ${original.na_reason}`) : null, h("p", {}, original.explanation)),
-    (original.evidence || []).length
-      ? h(
-          "div",
-          { class: "evidence-list" },
-          original.evidence.map((e) => h("a", { class: "evidence", href: `#/c/${encodeURIComponent(a.conversation_id)}?eval=${ev.id}&turn=${e.turn}` }, h("span", { class: "evidence-idx" }, `#${e.turn}`), `«${e.quote}»`)),
-        )
-      : range
-        ? h("div", { class: "checked-range" }, `Проверенный участок: #${range[0]}–#${range[1]}`)
-        : null,
-    h("h3", {}, "Комментарий апелляции"),
-    h("div", { class: "quote-box appeal-comment" }, a.comment, h("div", { class: "small muted" }, `${a.author || "Без имени"} · ${dt(a.created_at)}`)),
   );
 
-  const decisionBox = h("section", { class: "panel" });
-
-  function renderDecided() {
-    setChildren(decisionBox, 
-      h("div", { class: "panel-head" }, h("h2", {}, "Решение проверяющего"), h("span", { class: `badge appeal-badge appeal-${a.status}` }, APPEAL_STATUS[a.status])),
+  const decision = h("div", { class: "split-block" });
+  if (decided) {
+    setChildren(
+      decision,
+      h("h2", {}, "Решение"),
       h(
         "dl",
         { class: "kv" },
-        h("dt", {}, "Исходная оценка"),
+        h("dt", {}, "Было"),
         h("dd", {}, answerLabel(c, original)),
         h("dt", {}, "Решение"),
-        h("dd", {}, a.status === "changed" ? `изменено на: ${answerLabel(c, { ...original, ...a.decided_item })}` : "оценка подтверждена"),
+        h("dd", {}, a.status === "changed" ? `изменено на «${answerLabel(c, { ...original, ...a.decided_item })}»` : "оценка подтверждена"),
         h("dt", {}, "Причина"),
         h("dd", {}, a.decision_reason),
-        h("dt", {}, "Проверяющий"),
-        h("dd", {}, `${a.reviewer || "—"} · ${dt(a.decided_at)}`),
         h("dt", {}, "Итог диалога"),
         h("dd", {}, num(a.total_before, 2), " → ", h("b", {}, num(a.total_after, 2))),
-        h("dt", {}, "Текущий итог"),
-        h("dd", {}, scorePill(ev.final_result.total, ev.final_result.max_total), finalItem ? h("span", { class: "muted small" }, ` · критерий сейчас: ${answerLabel(c, finalItem)}`) : null),
       ),
-      h("a", { class: "btn", href: `#/c/${encodeURIComponent(a.conversation_id)}?eval=${ev.id}` }, "Открыть карточку диалога"),
     );
-  }
-
-  function renderForm() {
-    let decision = "confirm";
+  } else {
+    let choice = "confirm";
     const values = [];
     for (let v = c.scale.min; v <= c.scale.max; v++) values.push([String(v), `${v}${c.scale.labels?.[String(v)] ? ` — ${c.scale.labels[String(v)]}` : ""}`]);
-    if (c.na_allowed) values.push(["na", "N/A — критерий неприменим"]);
-    const current = original.applicable ? String(original.value) : "na";
-    const valueSel = h(
-      "select",
-      { class: "input" },
-      values.map(([v, l]) => h("option", { value: v, selected: v === current }, l)),
-    );
+    if (c.na_allowed) values.push(["na", "N/A — неприменим"]);
+    const valueSel = h("select", { class: "input" }, values.map(([v, l]) => h("option", { value: v, selected: v === (original.applicable ? String(original.value) : "na") }, l)));
     const valueField = field("Новая оценка", valueSel);
     valueField.hidden = true;
-    const reason = h("textarea", { class: "input", rows: 3, placeholder: "Обоснование решения (обязательно)" });
-    const reviewer = h("input", { class: "input", placeholder: "Имя проверяющего (необязательно)" });
-    const radio = (val, label) =>
+    const reason = h("textarea", { class: "input", rows: 3, placeholder: "Причина решения" });
+    const radio = (val, text) =>
       h(
         "label",
         { class: "radio" },
@@ -174,68 +125,63 @@ export async function renderAppeal(root, _params, id) {
           value: val,
           checked: val === "confirm",
           onChange: () => {
-            decision = val;
+            choice = val;
             valueField.hidden = val !== "change";
           },
         }),
-        label,
+        text,
       );
-    setChildren(decisionBox, 
-      h("div", { class: "panel-head" }, h("h2", {}, "Решение проверяющего"), h("span", { class: "badge appeal-badge appeal-open" }, APPEAL_STATUS.open)),
-      h("div", { class: "stack" }, h("div", { class: "radio-group" }, radio("confirm", "Подтвердить оценку"), radio("change", "Изменить оценку")), valueField, field("Причина", reason), field("Проверяющий", reviewer)),
-      h("p", { class: "small muted" }, `Текущий итог диалога: ${num(ev.final_result.total, 2)}. После изменения итог будет пересчитан с учётом весов и N/A.`),
+    setChildren(
+      decision,
+      h("h2", {}, "Решение"),
       h(
-        "button",
-        {
-          class: "btn btn-primary",
-          onClick: async (e) => {
-            if (reason.value.trim().length < 3) return toast("Укажите причину решения", "warn");
-            e.currentTarget.disabled = true;
-            try {
-              const body = { decision, reason: reason.value.trim(), reviewer: reviewer.value.trim() || null };
-              if (decision === "change") {
-                body.applicable = valueSel.value !== "na";
-                body.value = body.applicable ? Number(valueSel.value) : null;
+        "div",
+        { class: "stack" },
+        h("div", { class: "radio-group" }, radio("confirm", "Подтвердить"), radio("change", "Изменить")),
+        valueField,
+        field("Причина", reason),
+        h(
+          "button",
+          {
+            class: "btn-dark",
+            onClick: async (e) => {
+              if (reason.value.trim().length < 3) return toast("Укажите причину", "warn");
+              e.currentTarget.disabled = true;
+              try {
+                const body = { decision: choice, reason: reason.value.trim() };
+                if (choice === "change") {
+                  body.applicable = valueSel.value !== "na";
+                  body.value = body.applicable ? Number(valueSel.value) : null;
+                }
+                const r = await api.decide(a.id, body);
+                toast(`Сохранено. Итог: ${num(r.total_before, 2)} → ${num(r.total_after, 2)}`, "ok");
+                refreshBadges();
+                renderAppeal(root, null, id);
+              } catch (err) {
+                toast(err.message, "error");
+                e.currentTarget.disabled = false;
               }
-              const r = await api.decide(a.id, body);
-              toast(`Решение сохранено. Итог: ${num(r.total_before, 2)} → ${num(r.total_after, 2)}`, "ok");
-              refreshBadges();
-              renderAppeal(root, null, id);
-            } catch (err) {
-              toast(err.message, "error");
-              e.currentTarget.disabled = false;
-            }
+            },
           },
-        },
-        "Сохранить решение",
+          "Сохранить решение",
+        ),
       ),
     );
   }
 
-  a.status === "open" ? renderForm() : renderDecided();
-
-  setChildren(root, 
+  setChildren(
+    root,
     h(
       "div",
-      { class: "page-head" },
-      h(
-        "div",
-        {},
-        h("a", { href: "#/appeals", class: "back small" }, "← Апелляции"),
-        h("h1", {}, `Апелляция #${a.id}`),
-        h("div", { class: "chips" }, h("a", { class: "chip mono", href: `#/c/${encodeURIComponent(a.conversation_id)}?eval=${ev.id}` }, a.conversation_id), h("span", { class: "chip" }, a.language), h("span", { class: "chip" }, `оценка #${ev.id}`)),
-      ),
-    ),
-    h(
-      "div",
-      { class: "card-grid" },
-      h("div", { class: "stack" }, criterionBox, decisionBox),
+      { class: "split" },
+      h("section", { class: "split-left" }, h("a", { class: "split-back", href: "#/appeals" }, "← Апелляции"), fragment, h("a", { class: "split-back", href: cardHref }, "Открыть весь диалог →")),
       h(
         "section",
-        { class: "panel" },
-        h("div", { class: "panel-head" }, h("h2", {}, "Фрагмент диалога"), h("a", { class: "small", href: `#/c/${encodeURIComponent(a.conversation_id)}?eval=${ev.id}${(original.evidence || [])[0] ? `&turn=${original.evidence[0].turn}` : ""}` }, "Открыть полностью →")),
-        h("div", { class: "legend small" }, h("span", { class: "lg lg-evidence" }, "доказательство"), h("span", { class: "lg lg-range" }, "проверенный участок")),
-        fragment,
+        { class: "split-right" },
+        h("div", { class: "split-meta" }, `Апелляция #${a.id} · `, h("a", { href: cardHref }, a.conversation_id), ` · ${APPEAL_STATUS[a.status]}`),
+        h("h1", { class: "split-title" }, c.title),
+        dispute,
+        decision,
       ),
     ),
   );

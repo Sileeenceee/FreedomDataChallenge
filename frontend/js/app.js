@@ -1,15 +1,17 @@
 import { api } from "./api.js";
-import { $, $$, errorBox, h, spinner, toast, setChildren } from "./ui.js";
+import { $, $$, callout, errorBox, h, spinner, toast, setChildren } from "./ui.js";
 import { renderAppeal, renderAppeals } from "./views/appeals.js";
 import { renderChecklistEditor, renderChecklists } from "./views/checklists.js";
 import { renderConversation } from "./views/conversation.js";
 import { renderConversations } from "./views/conversations.js";
+import { renderHome } from "./views/home.js";
 
 const EMBED = new URLSearchParams(location.search).has("embed");
 if (EMBED) document.body.classList.add("embed");
 
 const routes = [
-  [/^\/$/, renderConversations],
+  [/^\/$/, renderHome],
+  [/^\/dialogs$/, renderConversations],
   [/^\/c\/([^/]+)$/, renderConversation],
   [/^\/appeals$/, renderAppeals],
   [/^\/appeals\/(\d+)$/, renderAppeal],
@@ -38,7 +40,7 @@ async function router() {
   }
   $$("#nav a").forEach((a) => {
     const r = a.dataset.route;
-    a.classList.toggle("active", r === "/" ? path === "/" || path.startsWith("/c/") : path.startsWith(r));
+    a.classList.toggle("active", r === "/" ? path === "/" : r === "/dialogs" ? path === "/dialogs" || path.startsWith("/c/") : path.startsWith(r));
   });
   const root = $("#app");
   for (const [re, view] of routes) {
@@ -108,6 +110,18 @@ async function pollBatches() {
   refreshBadges();
 }
 
+export const isMock = () => !state.health || state.health.evaluator === "mock";
+
+/** Shown wherever scores appear while no real evaluator is connected. */
+export function mockNotice() {
+  if (!isMock()) return null;
+  return callout(
+    "Демо-режим: оценки условные",
+    "Сейчас подключён MOCK-оценщик — баллы, объяснения и доказательства сгенерированы заглушкой, а не моделью, и не отражают качество диалога. Подключите модель в backend/app/services/evaluator.py.",
+    "warn",
+  );
+}
+
 export async function refreshBadges() {
   try {
     const s = await api.stats();
@@ -123,14 +137,14 @@ async function init() {
   try {
     state.health = await api.health();
     const chip = $("#engine");
-    if (state.health.evaluator === "anthropic") {
-      chip.textContent = `${state.health.model} · effort ${state.health.effort}`;
+    if (!isMock()) {
+      chip.textContent = `Модель: ${state.health.model}`;
       chip.classList.add("engine-ai");
-      chip.title = "Оценка выполняется моделью Claude";
+      chip.title = "Оценка выполняется моделью";
     } else {
-      chip.textContent = "MOCK-оценщик (нет API-ключа)";
+      chip.textContent = "Оценщик: демо (MOCK)";
       chip.classList.add("engine-mock");
-      chip.title = "Укажите ANTHROPIC_API_KEY в .env, чтобы включить оценку ИИ";
+      chip.title = "Модель не подключена — баллы условные. См. backend/app/services/evaluator.py";
     }
   } catch (e) {
     $("#engine").textContent = "API недоступен";

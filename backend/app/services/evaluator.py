@@ -179,6 +179,8 @@ def sanitize_items(config: ChecklistConfig, turns: list[dict], raw_items: list[d
                 "evidence": evidence,
                 "checked_range": checked,
                 "confidence": r.get("confidence", "medium"),
+                # Optional: how the operator should have answered (shown in the UI under "Как следовало ответить").
+                "suggested_reply": (r.get("suggested_reply") or "").strip(),
                 "warnings": warnings,
             }
         )

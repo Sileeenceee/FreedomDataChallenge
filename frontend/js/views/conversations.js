@@ -1,95 +1,52 @@
+// Dialogues list: search, two filters, one table. Click a row to open the card.
+import { evaluateDialog } from "../actions.js";
 import { api } from "../api.js";
-import { refreshBadges, trackBatch } from "../app.js";
-import { CHANNEL, STATUS, emptyState, h, modal, money, num, scorePill, select, field, toast, setChildren } from "../ui.js";
+import { emptyState, h, num, pageHeader, scorePill, select, setChildren } from "../ui.js";
 
-const filters = { q: "", group: "", language: "", channel: "", status: "" };
-const selected = new Set();
+const filters = { q: "", language: "", status: "" };
 
 export async function renderConversations(root) {
-  const [list, stats, checklists] = await Promise.all([api.conversations(), api.stats(), api.checklists()]);
-  let conversations = list;
-
-  const groups = [...new Set(conversations.map((c) => c.group))].sort();
-  const activeChecklist = checklists.find((c) => c.is_active);
-
-  const statsRow = h("div", { class: "stats" });
+  let conversations = await api.conversations();
   const tableWrap = h("div", { class: "card table-card" });
-  const countLabel = h("span", { class: "muted" });
-  const selectionBar = h("div", { class: "selection-bar" });
-
-  function renderStats(s) {
-    setChildren(statsRow, 
-      stat("Диалогов", num(s.conversations, 0), groups.length ? `групп: ${groups.join(", ")}` : null),
-      stat("Оценено", num(s.evaluated, 0), s.in_progress ? `в работе: ${s.in_progress}` : s.errors ? `ошибок: ${s.errors}` : null),
-      stat("Средний балл", num(s.avg_total, 1), Object.entries(s.by_language || {}).map(([k, v]) => `${k} ${v}`).join(" · ") || null),
-      stat("Грубые ошибки", num(s.critical, 0), s.evaluated ? `${num((100 * s.critical) / s.evaluated, 0)}% диалогов` : null, s.critical ? "bad" : null),
-      stat("Апелляции", num(s.appeals_open, 0), `решено: ${s.appeals_decided}`, s.appeals_open ? "warn" : null),
-      stat("Стоимость оценки", money(s.avg_cost_usd), "в среднем за диалог"),
-    );
-  }
+  const countLabel = h("span", { class: "muted small" });
 
   function matches(c) {
     const ev = c.evaluation;
     if (filters.q && !`${c.id} ${c.preview}`.toLowerCase().includes(filters.q.toLowerCase())) return false;
-    if (filters.group && c.group !== filters.group) return false;
     if (filters.language && c.language !== filters.language) return false;
-    if (filters.channel && c.channel !== filters.channel) return false;
-    if (filters.status === "none" && ev) return false;
-    if (filters.status === "done" && ev?.status !== "done") return false;
+    if (filters.status === "none" && ev?.status === "done") return false;
     if (filters.status === "critical" && !ev?.critical_error) return false;
     if (filters.status === "appeal" && !ev?.appeals_open) return false;
-    if (filters.status === "review" && !ev?.low_confidence) return false;
-    if (filters.status === "error" && ev?.status !== "error") return false;
     return true;
   }
 
   function renderTable() {
     const rows = conversations.filter(matches);
-    countLabel.textContent = `Показано ${rows.length} из ${conversations.length}`;
-    renderSelectionBar();
+    countLabel.textContent = `${rows.length} из ${conversations.length}`;
     if (!conversations.length) {
-      setChildren(tableWrap, 
-        emptyState("Диалогов пока нет", "Загрузите набор из API организаторов или JSON-файл с транскриптами.", h("button", { class: "btn btn-primary", onClick: importDialog }, "Импорт из API")),
-      );
+      setChildren(tableWrap, emptyState("Диалогов пока нет", "Загрузите их на странице «Обзор».", h("a", { class: "btn btn-primary", href: "#/" }, "К обзору")));
       return;
     }
-    const allChecked = rows.length > 0 && rows.every((r) => selected.has(r.id));
-    setChildren(tableWrap, 
+    setChildren(
+      tableWrap,
       h(
         "table",
         { class: "table" },
-        h(
-          "thead",
-          {},
-          h(
-            "tr",
-            {},
-            h("th", { class: "col-check" }, h("input", { type: "checkbox", checked: allChecked, onChange: (e) => { rows.forEach((r) => (e.target.checked ? selected.add(r.id) : selected.delete(r.id))); renderTable(); }, "aria-label": "Выбрать все" })),
-            h("th", {}, "Диалог"),
-            h("th", {}, "Канал"),
-            h("th", {}, "Язык"),
-            h("th", { class: "num" }, "Реплик"),
-            h("th", {}, "Обращение клиента"),
-            h("th", { class: "num" }, "Итог"),
-            h("th", {}, "Статус"),
-          ),
-        ),
+        h("thead", {}, h("tr", {}, h("th", {}, "Диалог"), h("th", {}, "Обращение клиента"), h("th", { class: "num" }, "Итог"), h("th", {}, ""), h("th", {}, ""))),
         h(
           "tbody",
           {},
           rows.map((c) => {
             const ev = c.evaluation;
+            const href = `#/c/${encodeURIComponent(c.id)}`;
             return h(
               "tr",
-              { class: selected.has(c.id) ? "row-selected" : "", onClick: (e) => { if (e.target.closest("input,a,button")) return; location.hash = `#/c/${encodeURIComponent(c.id)}`; } },
-              h("td", { class: "col-check" }, h("input", { type: "checkbox", checked: selected.has(c.id), onChange: (e) => { e.target.checked ? selected.add(c.id) : selected.delete(c.id); renderTable(); } })),
-              h("td", {}, h("a", { href: `#/c/${encodeURIComponent(c.id)}`, class: "mono strong" }, c.id), h("div", { class: "muted small" }, c.group)),
-              h("td", {}, h("span", { class: `chip chip-${c.channel === "voice call" ? "call" : "chat"}` }, c.channel === "voice call" ? "☎ " : "💬 ", CHANNEL[c.channel] || c.channel)),
-              h("td", {}, h("span", { class: "chip" }, c.language)),
-              h("td", { class: "num" }, c.turns, h("div", { class: "muted small" }, `опер.: ${c.operator_turns}`)),
+              {},
+              h("td", { class: "cell-id" }, h("a", { href, class: "mono strong" }, c.id), h("span", { class: "muted small cell-lang" }, c.language, c.channel === "voice call" ? " · звонок" : "")),
               h("td", {}, h("div", { class: "preview" }, c.preview)),
-              h("td", { class: "num" }, ev?.status === "done" ? scorePill(ev.total, ev.max_total) : "—", ev && ev.original_total !== null && ev.original_total !== ev.total ? h("div", { class: "muted small" }, `было ${num(ev.original_total, 2)}`) : null),
-              h("td", {}, statusCell(ev)),
+              h("td", { class: "num" }, ev?.status === "done" ? scorePill(ev.total, ev.max_total) : h("span", { class: "muted" }, "—")),
+              h("td", { class: "cell-status" }, statusBadge(ev)),
+              h("td", { class: "cell-action" }, h("a", { class: "btn btn-sm btn-primary", href }, "Открыть")),
             );
           }),
         ),
@@ -97,180 +54,55 @@ export async function renderConversations(root) {
     );
   }
 
-  function renderSelectionBar() {
-    setChildren(selectionBar, 
-      selected.size
-        ? [
-            h("span", {}, `Выбрано: ${selected.size}`),
-            h("button", { class: "btn btn-primary btn-sm", onClick: () => evaluateDialog([...selected]) }, "Оценить выбранные"),
-            h("button", { class: "btn btn-sm", onClick: () => { selected.clear(); renderTable(); } }, "Снять выбор"),
-          ]
-        : [],
-    );
-    selectionBar.hidden = !selected.size;
-  }
-
-  function importDialog() {
-    const group = h("input", { class: "input", value: "DEV", placeholder: "group_id" });
-    modal({
-      title: "Импорт из API организаторов",
-      body: h(
-        "div",
-        { class: "stack" },
-        field("group_id", group, "DEV — набор для разработки. Для контрольного набора введите значение, которое сообщат организаторы."),
-        h("p", { class: "muted small" }, "Запрос выполняется сервером (без CORS). Повторный импорт обновляет транскрипты, оценки сохраняются."),
-      ),
-      actions: [
-        {
-          label: "Импортировать",
-          kind: "primary",
-          onClick: async () => {
-            const r = await api.importGroup(group.value.trim() || "DEV");
-            toast(`Группа ${r.group}: новых ${r.created}, обновлено ${r.updated}`, "ok");
-            await reload();
-          },
-        },
-      ],
-    });
-  }
-
-  function uploadDialog() {
-    const file = h("input", { type: "file", accept: ".json,application/json", class: "input" });
-    const group = h("input", { class: "input", placeholder: "например, UPLOAD (необязательно)" });
-    modal({
-      title: "Загрузить транскрипты (JSON)",
-      body: h(
-        "div",
-        { class: "stack" },
-        field("Файл", file, "Формат API организаторов, {records:[…]}, массив записей или одна запись с conversation_id и transcript."),
-        field("Группа", group),
-      ),
-      actions: [
-        {
-          label: "Загрузить",
-          kind: "primary",
-          onClick: async () => {
-            if (!file.files[0]) throw new Error("Выберите файл");
-            const r = await api.upload(file.files[0], group.value.trim());
-            toast(`Загружено: новых ${r.created}, обновлено ${r.updated}`, "ok");
-            await reload();
-          },
-        },
-      ],
-    });
-  }
-
-  function evaluateDialog(ids) {
-    const options = checklists.map((c) => [c.id, `${c.name} · v${c.version}${c.is_active ? " (активный)" : ""}`]);
-    const cl = select(options, activeChecklist?.id);
-    const scope = select(
-      [
-        ["selected", `Выбранные диалоги (${ids?.length || 0})`],
-        ...groups.map((g) => [`group:${g}`, `Вся группа ${g}`]),
-        ["all", "Все диалоги"],
-      ],
-      ids?.length ? "selected" : groups[0] ? `group:${groups[0]}` : "all",
-    );
-    const onlyMissing = h("input", { type: "checkbox" });
-    modal({
-      title: "Запустить оценку",
-      body: h(
-        "div",
-        { class: "stack" },
-        field("Чек-лист", cl),
-        field("Что оценить", scope),
-        h("label", { class: "check" }, onlyMissing, " Только диалоги без оценки по этому чек-листу"),
-        h("p", { class: "muted small" }, "Оценка выполняется в фоне; прогресс — в правом верхнем углу. Предыдущие оценки сохраняются в истории карточки."),
-      ),
-      actions: [
-        {
-          label: "Оценить",
-          kind: "primary",
-          onClick: async () => {
-            const body = { checklist_id: Number(cl.value), only_missing: onlyMissing.checked };
-            if (scope.value === "selected") body.conversation_ids = ids;
-            else if (scope.value.startsWith("group:")) body.group = scope.value.slice(6);
-            const r = await api.evaluate(body);
-            if (!r.count) return toast("Нечего оценивать: все диалоги уже оценены", "warn");
-            toast(`В очереди: ${r.count}`, "ok");
-            trackBatch(r.batch_id);
-            selected.clear();
-            await reload();
-          },
-        },
-      ],
-    });
-  }
-
-  async function reload() {
-    const [l, s] = await Promise.all([api.conversations(), api.stats()]);
-    conversations = l;
-    renderStats(s);
+  const reload = async () => {
+    conversations = await api.conversations();
     renderTable();
-    refreshBadges();
-  }
+  };
 
-  const search = h("input", { class: "input search", placeholder: "Поиск по ID или тексту…", value: filters.q, onInput: (e) => { filters.q = e.target.value; renderTable(); } });
-  const filterSel = (key, options) => select([["", options[0]], ...options.slice(1)], filters[key], { onChange: (e) => { filters[key] = e.target.value; renderTable(); } });
-
-  setChildren(root, 
-    h(
-      "div",
-      { class: "page-head" },
-      h("div", {}, h("h1", {}, "Диалоги"), h("p", { class: "muted" }, "Загрузите транскрипты, выберите чек-лист и запустите оценку работы оператора.")),
-      h(
-        "div",
-        { class: "actions" },
-        h("button", { class: "btn", onClick: uploadDialog }, "Загрузить JSON"),
-        h("button", { class: "btn", onClick: importDialog }, "Импорт из API"),
-        h("button", { class: "btn btn-primary", onClick: () => evaluateDialog([...selected]) }, "Оценить…"),
-      ),
-    ),
-    statsRow,
+  setChildren(
+    root,
+    pageHeader({
+      title: "Диалоги",
+      actions: [h("button", { class: "btn btn-primary", onClick: () => evaluateDialog(reload) }, "Оценить…")],
+    }),
     h(
       "div",
       { class: "toolbar" },
-      search,
-      filterSel("group", ["Все группы", ...groups.map((g) => [g, g])]),
-      filterSel("language", ["Все языки", ["RU", "RU"], ["KZ", "KZ"], ["EN", "EN"]]),
-      filterSel("channel", ["Все каналы", ["agent chat", "Чат"], ["voice call", "Звонок"]]),
-      filterSel("status", ["Любой статус", ["none", "Без оценки"], ["done", "Оценены"], ["critical", "Грубая ошибка"], ["review", "Нужна проверка"], ["appeal", "Есть апелляция"], ["error", "Ошибка оценки"]]),
+      h("input", { class: "input search", placeholder: "Поиск по ID или тексту", value: filters.q, onInput: (e) => { filters.q = e.target.value; renderTable(); } }),
+      select([["", "Все языки"], "RU", "KZ", "EN"], filters.language, { onChange: (e) => { filters.language = e.target.value; renderTable(); } }),
+      select(
+        [
+          ["", "Все"],
+          ["none", "Без оценки"],
+          ["critical", "Грубая ошибка"],
+          ["appeal", "С апелляцией"],
+        ],
+        filters.status,
+        { onChange: (e) => { filters.status = e.target.value; renderTable(); } },
+      ),
       countLabel,
     ),
-    selectionBar,
     tableWrap,
   );
-  renderStats(stats);
   renderTable();
 
-  // Live refresh while evaluations are running.
-  let t = null;
-  const onProgress = () => {
-    clearTimeout(t);
-    t = setTimeout(reload, 400);
-  };
-  window.addEventListener("cqa:batch-progress", onProgress);
-  window.addEventListener("cqa:batch-finished", onProgress);
-  const anyRunning = conversations.some((c) => ["pending", "running"].includes(c.evaluation?.status));
-  const poll = anyRunning ? setInterval(reload, 3000) : null;
+  // Refresh while evaluations run in the background.
+  const onBatch = () => reload();
+  window.addEventListener("cqa:batch-progress", onBatch);
+  window.addEventListener("cqa:batch-finished", onBatch);
   return () => {
-    window.removeEventListener("cqa:batch-progress", onProgress);
-    window.removeEventListener("cqa:batch-finished", onProgress);
-    clearTimeout(t);
-    if (poll) clearInterval(poll);
+    window.removeEventListener("cqa:batch-progress", onBatch);
+    window.removeEventListener("cqa:batch-finished", onBatch);
   };
 }
 
-function stat(label, value, hint, tone) {
-  return h("div", { class: `stat ${tone ? `stat-${tone}` : ""}` }, h("div", { class: "stat-label" }, label), h("div", { class: "stat-value" }, value), hint ? h("div", { class: "stat-hint" }, hint) : null);
-}
-
-function statusCell(ev) {
-  if (!ev) return h("span", { class: "muted" }, "Не оценён");
-  const parts = [h("span", { class: `status status-${ev.status}` }, STATUS[ev.status] || ev.status)];
-  if (ev.critical_error) parts.push(h("span", { class: "badge badge-bad", title: "Грубая ошибка" }, "Грубая ошибка"));
-  if (ev.appeals_open) parts.push(h("span", { class: "badge badge-warn" }, `Апелляция: ${ev.appeals_open}`));
-  if (ev.low_confidence) parts.push(h("span", { class: "badge", title: "Критерии с низкой уверенностью модели" }, `Проверить: ${ev.low_confidence}`));
-  if (ev.evaluator === "mock") parts.push(h("span", { class: "badge badge-mock" }, "MOCK"));
-  return h("div", { class: "status-cell" }, parts);
+/** One badge per row, most important first. */
+function statusBadge(ev) {
+  if (!ev) return h("span", { class: "badge" }, "Не оценён");
+  if (ev.status === "pending" || ev.status === "running") return h("span", { class: "badge badge-warn" }, "Оценивается…");
+  if (ev.status === "error") return h("span", { class: "badge badge-bad" }, "Ошибка");
+  if (ev.appeals_open) return h("span", { class: "badge badge-warn" }, "Апелляция");
+  if (ev.critical_error) return h("span", { class: "badge badge-bad" }, "Грубая ошибка");
+  if (ev.original_total !== null && ev.original_total !== ev.total) return h("span", { class: "badge badge-info", title: `Было ${num(ev.original_total, 2)}` }, "Пересмотрено");
+  return null;
 }

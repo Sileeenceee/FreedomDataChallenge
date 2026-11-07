@@ -30,6 +30,89 @@ export function setChildren(el, ...children) {
   return el;
 }
 
+/** Dark-green page band (same layout as the task guide): eyebrow, title, subtitle, actions. */
+export function hero({ eyebrow, title, subtitle, back, actions, chips, titleClass }) {
+  return h(
+    "section",
+    { class: "hero" },
+    h(
+      "div",
+      { class: "hero-inner" },
+      h(
+        "div",
+        { class: "hero-text" },
+        back ? h("a", { class: "hero-back", href: back.href }, "← ", back.label) : null,
+        eyebrow ? h("div", { class: "eyebrow" }, eyebrow) : null,
+        h("h1", { class: titleClass }, title),
+        subtitle ? h("p", { class: "hero-sub" }, subtitle) : null,
+        chips ? h("div", { class: "hero-chips" }, chips) : null,
+      ),
+      actions ? h("div", { class: "hero-actions" }, actions) : null,
+    ),
+  );
+}
+
+/** One chat message, Telegram-style: client on the left, operator/bot on the right, system centred. */
+export function chatMessage(t, { meta = [], cls = "" } = {}) {
+  if (t.speaker === "system") {
+    return h("div", { class: `msg msg-system ${cls}`, id: `turn-${t.idx}` }, h("span", { class: "service" }, t.text, h("span", { class: "service-time" }, ` · ${turnTime(t)}`)));
+  }
+  const side = t.speaker === "client" ? "left" : "right";
+  return h(
+    "div",
+    { class: `msg msg-${side} msg-${t.speaker} ${cls}`, id: `turn-${t.idx}` },
+    h(
+      "div",
+      { class: "bubble" },
+      t.speaker === "bot" ? h("div", { class: "msg-author" }, "Бот") : null,
+      h("div", { class: "msg-text" }, t.text),
+      h("div", { class: "msg-meta" }, meta, h("span", {}, `#${t.idx}`), h("span", {}, turnTime(t))),
+    ),
+  );
+}
+
+/** Slim page title row (used on every page except the start page). */
+export function pageHeader({ back, title, titleClass, subtitle, chips, actions }) {
+  return h(
+    "div",
+    { class: "page-header" },
+    h(
+      "div",
+      { class: "page-header-text" },
+      back ? h("a", { class: "page-back", href: back.href }, "← ", back.label) : null,
+      h("div", { class: "page-title-row" }, h("h1", { class: titleClass }, title), chips ? h("div", { class: "chips" }, chips) : null),
+      subtitle ? h("p", { class: "page-sub" }, subtitle) : null,
+    ),
+    actions ? h("div", { class: "actions" }, actions) : null,
+  );
+}
+
+export const stepNum = (n, done) => h("span", { class: `step-num ${done ? "step-done" : ""}` }, done ? "✓" : String(n).padStart(2, "0"));
+
+/** Numbered workflow steps: [{ title, text, done, actions }] */
+export function steps(items) {
+  return h(
+    "ol",
+    { class: "steps" },
+    items.map((s, i) =>
+      h(
+        "li",
+        { class: `step ${s.done ? "is-done" : ""} ${s.current ? "is-current" : ""}` },
+        stepNum(i + 1, s.done),
+        h("div", { class: "step-body" }, h("div", { class: "step-title" }, s.title), s.text ? h("div", { class: "step-text" }, s.text) : null, s.actions ? h("div", { class: "step-actions" }, s.actions) : null),
+      ),
+    ),
+  );
+}
+
+/** Soft-green note box, like "Вес и итог" in the guide. kind: info | warn */
+export function callout(title, body, kind = "info") {
+  return h("div", { class: `callout callout-${kind}` }, title ? h("div", { class: "callout-title" }, title) : null, h("div", { class: "callout-body" }, body));
+}
+
+/** Small uppercase label above a block (Ответ, Баллы, Обоснование…). */
+export const label = (text) => h("div", { class: "label" }, text);
+
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 

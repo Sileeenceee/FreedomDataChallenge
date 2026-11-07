@@ -242,3 +242,7 @@ backend/data/*
 .idea/
 .vscode/
 node_modules/
+
+# Local junk / tool folders
+/cdsadfcas*
+.claude/

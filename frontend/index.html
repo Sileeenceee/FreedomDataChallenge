@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Freedom CQA</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230b8f4e'/><path d='M9 23V9h14M9 16h10' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round'/></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/app.css" />
     <script src="config.js"></script>
   </head>
@@ -16,11 +18,14 @@
     -->
     <header class="topbar" id="topbar">
       <a class="brand" href="#/">
-        <span class="brand-mark">F</span>
-        <span>Freedom <b>CQA</b></span>
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 20V5h12M6 12.5h9" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" /></svg>
+        </span>
+        <span class="brand-text">FREEDOM BROKER <span class="brand-sep">/</span> CQA</span>
       </a>
       <nav class="nav" id="nav">
-        <a href="#/" data-route="/">Диалоги</a>
+        <a href="#/" data-route="/">Обзор</a>
+        <a href="#/dialogs" data-route="/dialogs">Диалоги</a>
         <a href="#/appeals" data-route="/appeals">Апелляции <span class="nav-badge" id="appeals-badge" hidden></span></a>
         <a href="#/checklists" data-route="/checklists">Чек-листы</a>
       </nav>
