@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Freedom CQA</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230b8f4e'/><path d='M9 23V9h14M9 16h10' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round'/></svg>" />
+    <link rel="stylesheet" href="css/app.css" />
+    <script src="config.js"></script>
+  </head>
+  <body>
+    <!--
+      Freedom Broker · Conversation Quality Analytics.
+      Plain HTML/CSS/JS (ES modules), no build step: every file can be uploaded as a Dynamics 365 web resource.
+      Embedded mode (no header): index.html?embed=1#/c/<conversation_id>
+    -->
+    <header class="topbar" id="topbar">
+      <a class="brand" href="#/">
+        <span class="brand-mark">F</span>
+        <span>Freedom <b>CQA</b></span>
+      </a>
+      <nav class="nav" id="nav">
+        <a href="#/" data-route="/">Диалоги</a>
+        <a href="#/appeals" data-route="/appeals">Апелляции <span class="nav-badge" id="appeals-badge" hidden></span></a>
+        <a href="#/checklists" data-route="/checklists">Чек-листы</a>
+      </nav>
+      <div class="topbar-right">
+        <div id="batch-progress" class="batch-progress" hidden></div>
+        <span id="engine" class="engine-chip">…</span>
+      </div>
+    </header>
+    <main id="app" class="main"></main>
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

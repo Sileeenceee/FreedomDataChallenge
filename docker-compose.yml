@@ -1,0 +1,14 @@
+# Single container: API + UI on http://localhost:8000. Data is a SQLite file in ./backend/data (persisted).
+services:
+  app:
+    build: ./backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite:////app/data/cqa.db
+      FRONTEND_DIR: /frontend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data:/app/data
+      - ./frontend:/frontend:ro

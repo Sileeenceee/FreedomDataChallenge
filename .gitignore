@@ -218,3 +218,27 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---------------------------------------------------------------------------
+# Freedom CQA project
+# ---------------------------------------------------------------------------
+# Secrets: organisers' signed API link and API keys live only in .env
+.env
+!.env.example
+
+# Local SQLite database and evaluation results
+*.db
+backend/data/*
+!backend/data/.gitkeep
+
+# Organiser data and call recordings (fetched via their API, not redistributed)
+/data/
+
+# Organiser materials (contain signed links)
+*.pdf
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+node_modules/
