@@ -246,3 +246,10 @@ node_modules/
 # Local junk / tool folders
 /cdsadfcas*
 .claude/
+
+# Colab / notebook outputs (contain organiser dialogues and model results)
+results.json
+errors.json
+qwen_dataset.json
+cloudflared
+.ipynb_checkpoints/

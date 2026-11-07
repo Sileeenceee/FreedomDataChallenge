@@ -98,7 +98,7 @@ def test_full_flow(client):
     ev = client.get(f"/api/evaluations/{conv['evaluations'][0]['id']}").json()
     assert ev["status"] == "done" and ev["final_result"]["total"] is not None
     assert {i["criterion_id"] for i in ev["items"]} == {c["id"] for c in active["config"]["criteria"]}
-    greeting = next(i for i in ev["items"] if i["criterion_id"] == "greeting")
+    greeting = next(i for i in ev["items"] if i["criterion_id"] == "1")
     assert greeting["evidence"][0]["turn"] == 3 and greeting["evidence"][0]["verified"]
 
     # appeal -> reviewer changes the score -> total recomputed, original kept

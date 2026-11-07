@@ -51,7 +51,7 @@ def health():
         "status": "ok",
         "database": engine.dialect.name,
         "evaluator": settings.evaluator_mode,
-        "model": settings.cqa_model if settings.evaluator_mode == "anthropic" else "mock-heuristic",
+        "model": settings.model_name,
         "effort": settings.cqa_effort,
         "source_api_configured": bool(settings.cqa_api_url),
         "pricing_usd_per_mtok": {"input": settings.price_input, "output": settings.price_output},

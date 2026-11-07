@@ -326,7 +326,7 @@ def evaluate_mock(config: ChecklistConfig, turns: list[dict], meta: dict) -> Eva
                 }
             )
             continue
-        if c.id == "greeting" or "привет" in c.title.lower():
+        if c.id in ("greeting", "1") or "привет" in c.title.lower() or "контакт" in c.title.lower():
             hit = next((t for t in ops[:2] if _GREET.search(t["text"])), None)
             value = c.scale.max if hit else c.scale.min
         elif c.id == "closing" or "заверш" in c.title.lower():
@@ -360,7 +360,31 @@ def evaluate_mock(config: ChecklistConfig, turns: list[dict], meta: dict) -> Eva
     )
 
 
+def evaluate_with_qwen(config: ChecklistConfig, turns: list[dict], meta: dict) -> EvalOutput:
+    from app.services import qwen
+
+    t0 = time.time()
+    r = qwen.generate(qwen.build_messages(config, turns, meta))
+    data = qwen.parse_json(r["text"])
+    return EvalOutput(
+        summary=(data.get("summary") or "").strip(),
+        items=sanitize_items(config, turns, qwen.to_raw_items(config, turns, data)),
+        model=settings.qwen_model,
+        evaluator="qwen",
+        usage={
+            "input_tokens": r.get("input_tokens", 0),
+            "output_tokens": r.get("output_tokens", 0),
+            "gpu_seconds": r.get("seconds"),
+            "cost_usd": 0.0,
+            "raw_output": r["text"],
+        },
+        duration_s=round(time.time() - t0, 2),
+    )
+
+
 def evaluate(config: ChecklistConfig, turns: list[dict], meta: dict) -> EvalOutput:
+    if settings.evaluator_mode == "qwen":
+        return evaluate_with_qwen(config, turns, meta)
     if settings.evaluator_mode == "anthropic":
         return evaluate_with_claude(config, turns, meta)
     return evaluate_mock(config, turns, meta)
